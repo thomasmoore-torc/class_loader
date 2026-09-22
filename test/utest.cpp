@@ -318,7 +318,15 @@ TEST(ClassLoaderTest, threadSafety) {
 // reading isOwnedBy(), and addOwningClassLoader()/removeOwningClassLoader()/isOwnedBy() took
 // no lock of their own. Reported by ThreadSanitizer as a data race on the vector's
 // push_back()/erase() (via std::vector's internal reallocation).
+//
+// `anchor` is kept alive for the whole test so the library's owner count never reaches zero
+// and none of the worker threads ever trigger the actual unload/dlclose path: that path has
+// its own pre-existing, unrelated bug (a library can be dlclose()-d twice when independent
+// ClassLoaders for the same library race to be "last owner out"), which this test isn't
+// targeting and would otherwise crash it intermittently regardless of the fix under test here.
 TEST(ClassLoaderTest, threadSafetyMultipleLoadersPerLibrary) {
+  class_loader::ClassLoader anchor(LIBRARY_1);
+
   std::vector<std::thread> client_threads;
   std::atomic<int> failures{0};
 
